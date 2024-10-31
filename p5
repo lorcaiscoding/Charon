@@ -1,0 +1,109 @@
+let images = [];
+let currentIndex = 0;
+let order = ["RIGHT", "DOWN", "LEFT", "UP"];
+let orderIndex = 0;
+let bluetoothDevice;
+let bleCharacteristic;
+const serviceUuid = "12345678-1234-1234-1234-123456789abc";
+const characteristicUuid = "87654321-4321-4321-4321-cba987654321";
+
+async function connectToBle() {
+  console.log("Attempting to connect to BLE...");
+
+  try {
+    bluetoothDevice = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: [serviceUuid]
+    });
+    console.log("BLE device selection initiated.");
+
+    bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+    await connectToGattServer();
+
+  } catch (error) {
+    console.error("BLE connection failed:", error);
+  }
+}
+
+async function connectToGattServer() {
+  try {
+    console.log("Connecting to GATT server...");
+    const server = await bluetoothDevice.gatt.connect();
+    console.log("Connected to GATT server");
+
+    const service = await server.getPrimaryService(serviceUuid);
+    console.log("Primary service found");
+
+    bleCharacteristic = await service.getCharacteristic(characteristicUuid);
+    console.log("Characteristic found");
+
+    bleCharacteristic.startNotifications();
+    bleCharacteristic.addEventListener("characteristicvaluechanged", handleDirection);
+    console.log("BLE device connected and notifications started.");
+  } catch (error) {
+    console.error("Failed to connect to GATT server:", error);
+  }
+}
+
+function onDisconnected() {
+  console.log("BLE device disconnected, attempting to reconnect...");
+  connectToGattServer();
+}
+
+function preload() {
+  for (let i = 1; i <= 62; i++) {
+    let img = loadImage(`charon/paddling${i}.png`);
+    images.push(img);
+  }
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  image(images[currentIndex], 0, 0, width, height);
+
+  let connectButton = createButton("Connect to Joystick");
+  connectButton.position(10, 10);
+  connectButton.mousePressed(() => {
+    console.log("Connect button clicked");
+    connectToBle();
+  });
+}
+
+function handleDirection(event) {
+  const value = new TextDecoder().decode(event.target.value);
+  console.log("Received direction:", value);
+
+  if (value === "RIGHT") {
+    keyPressed("RIGHT");
+  } else if (value === "DOWN") {
+    keyPressed("DOWN");
+  } else if (value === "LEFT") {
+    keyPressed("LEFT");
+  } else if (value === "UP") {
+    keyPressed("UP");
+  }
+}
+
+function keyPressed(direction) {
+  if (currentIndex >= 61) {
+    image(images[61], 0, 0, width, height);
+    noLoop();
+    return;
+  }
+
+  let correctKey = false;
+  if (direction === order[orderIndex]) {
+    correctKey = true;
+  }
+
+  if (correctKey) {
+    currentIndex++;
+    orderIndex = (orderIndex + 1) % order.length;
+    image(images[currentIndex], 0, 0, width, height);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  image(images[currentIndex], 0, 0, width, height);
+}
